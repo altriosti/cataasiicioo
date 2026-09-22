@@ -49,6 +49,11 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 #trayGpu.on{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
 #clock{color:var(--mute);font-size:12px}
 
+/* ---------- paused notice ---------- */
+.notice{margin-top:14px;border:1px solid var(--amber);color:var(--amber);padding:10px 14px;font-size:14px}
+.notice::before{content:"! ";font-weight:700}
+.notice[hidden]{display:none}
+
 /* ---------- hero ---------- */
 .hero{padding:34px 0 26px;display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:end}
 .logo{font:400 clamp(64px,12vw,156px)/.82 var(--big);color:var(--g);text-shadow:var(--glow);margin:0;letter-spacing:2px;position:relative}
@@ -214,6 +219,8 @@ footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);color:v
     <span id="clock">--:--:--</span>
     <button class="btn" id="connectBtn">connect wallet</button>
   </header>
+
+  <div id="pausedNotice" class="notice" role="status" hidden></div>
 
   <section class="hero">
     <div>

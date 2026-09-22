@@ -198,7 +198,8 @@
       $("stEpoch").textContent = `epoch ${Number(s[3])}/7`;
       drawProgress(minted);
       epochRows();
-      if (!s[0]) $("mineBtn").textContent = "mining opens soon";
+      if (cfg.paused) { $("mineBtn").textContent = "mining paused"; $("mineBtn").disabled = true; }
+      else if (!s[0]) $("mineBtn").textContent = "mining opens soon";
       else if (!mining) $("mineBtn").textContent = "start mining";
       if (newCat && mining && !sending && Number(s[1]) !== ownMint) say(`Cat #${minted} was mined by someone. New round.`, "a");
       if (mining && changed && !sending) startJob();
@@ -227,7 +228,7 @@
     const short = account.slice(0, 6) + "…" + account.slice(-4);
     $("connectBtn").textContent = short;
     $("stWallet").textContent = "wallet " + short;
-    $("mineBtn").disabled = !ready;
+    $("mineBtn").disabled = !ready || !!cfg.paused;
     say("Wallet connected: " + short, "g");
     if (window.ethereum.on) {
       window.ethereum.on("accountsChanged", () => location.reload());
@@ -363,6 +364,7 @@
     }
   }
   async function startMining() {
+    if (cfg.paused) { say(cfg.pausedMessage || "Mining is paused.", "a"); return; }
     if (!account && !(await connect())) return;
     if (!ready) return;
     mining = true;
@@ -498,6 +500,11 @@
   epochRows();
   boot();
   say("CatASIC miner ready.", "a");
+  if (cfg.paused) {
+    say(cfg.pausedMessage || "Mining is paused.", "a");
+    const n = document.getElementById("pausedNotice");
+    if (n) { n.hidden = false; n.textContent = cfg.pausedMessage || "Mining is paused."; }
+  }
   say(gpuSupported ? "WebGPU found. GPU and CPU mining available." : "WebGPU not found in this browser. CPU mining only.", gpuSupported ? "c" : "a");
   if (ready) { refresh(); setInterval(refresh, 5000); }
   else say("Contracts are not set yet. Add addresses in config.js.", "r");
