@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>CatASIC migration tool</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--g:#39ff88;--g2:#1fbf62;--line:#1a6b37;--mute:#5fa67c;--txt:#b8ffd4;--red:#ff4466;--amber:#ffcc33;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;min-height:100vh;background:#020403;color:var(--txt);font:18px/1.35 "VT323",ui-monospace,Menlo,monospace;padding:20px}
+.win{border:1px solid var(--line);background:#040c07;max-width:720px;margin:0 auto;position:relative;padding:30px 16px 16px}
+.bar{position:absolute;top:-13px;left:12px;background:#020403;color:var(--g);padding:0 8px;font-size:22px}
+h2{font-size:22px;color:var(--g);margin:18px 0 6px;font-weight:400}
+p{margin:0 0 8px;color:var(--mute)}
+.btn{background:transparent;color:var(--g);border:1px solid var(--g2);padding:8px 14px;cursor:pointer;font:20px "VT323",monospace;margin:4px 6px 4px 0}
+.btn::before{content:"[ "}.btn::after{content:" ]"}
+.btn:hover:not(:disabled){background:var(--g);color:#000}
+.btn:disabled{color:#2d5a40;border-color:#173a26;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+.term{background:#010402;border:1px solid var(--line);padding:8px;height:260px;overflow:auto;margin-top:12px}
+.g{color:var(--g)}.r{color:var(--red)}.a{color:var(--amber)}
+#batches{display:flex;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="bar">MIGRATE.EXE</div>
+  <p>Copies every v1 cat to the new CatASIC contract: same id, same owner, same art. Only the new contract's owner can run it, and only before mining starts.</p>
+
+  <h2>1. Read v1</h2>
+  <button class="btn" id="read">Read v1 cats</button>
+
+  <h2>2. Copy cats</h2>
+  <button class="btn" id="connect">Connect wallet</button>
+  <div id="batches"></div>
+
+  <h2>3. Finish</h2>
+  <button class="btn" id="finish" disabled>Finish migration</button>
+  <button class="btn" id="verify" disabled>Verify</button>
+
+  <div class="term" id="log"></div>
+</div>
+<script src="vendor/ethers.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="rpc.js"></script>
+<script>
+(() => {
+  const E = ethers, cfg = window.CATASIC_CONFIG, $ = (id) => document.getElementById(id);
+  const BATCH = 40;
+  const rp = window.makeCatProvider(cfg);
+  const V1_ABI = ["function totalMinted() view returns (uint256)", "function alive() view returns (uint256)", "function uniqueSlot(uint256) view returns (uint256)",
+    "function ownerOf(uint256) view returns (address)", "function seedOf(uint256) view returns (bytes32)", "function epochOf(uint256) view returns (uint8)", "function uniqueOf(uint256) view returns (uint8)"];
+  const V2_ABI = V1_ABI.concat(["function migrate(uint256[],address[],bytes32[],uint8[],uint8[])", "function finishMigration(uint256,uint256)",
+    "function migrationFinished() view returns (bool)", "function started() view returns (bool)", "function owner() view returns (address)",
+    "error BadMigration()", "error MigrationClosed()", "error OwnableUnauthorizedAccount(address)"]);
+  let cats = [], v1Minted = 0, slot0 = 0, signer = null;
+  const log = (m, c) => { const d = document.createElement("div"); if (c) d.className = c; d.textContent = "> " + m; $("log").appendChild(d); $("log").scrollTop = 1e9; };
+
+  if (!cfg.legacyNft || !E.isAddress(cfg.legacyNft)) log("Set legacyNft (the v1 CatASIC address) in config.js.", "r");
+  if (!cfg.nft || !E.isAddress(cfg.nft) || cfg.nft.toLowerCase() === (cfg.legacyNft || "").toLowerCase()) log("Set nft to the NEW CatASIC address in config.js.", "r");
+  const v1 = new E.Contract(cfg.legacyNft, V1_ABI, rp);
+  const v2r = new E.Contract(cfg.nft, V2_ABI, rp);
+
+  async function pool(items, n, fn) {
+    const out = new Array(items.length); let i = 0;
+    await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]); } }));
+    return out;
+  }
+
+  $("read").onclick = async () => {
+    try {
+      $("read").disabled = true;
+      v1Minted = Number(await v1.totalMinted());
+      slot0 = Number(await v1.uniqueSlot(0));
+      log(`v1 minted: ${v1Minted}. Reading every cat…`);
+      const ids = Array.from({ length: v1Minted }, (_, i) => i + 1);
+      const rows = await pool(ids, 6, async (id) => {
+        let owner = null;
+        try { owner = await v1.ownerOf(id); } catch { return null; } // burned
+        const [seed, ep, uq] = await Promise.all([v1.seedOf(id), v1.epochOf(id), v1.uniqueOf(id)]);
+        return { id, owner, seed, epoch: Number(ep), unique: Number(uq) };
+      });
+      cats = rows.filter(Boolean);
+      const burned = ids.filter((id, k) => !rows[k]);
+      log(`Found ${cats.length} living cats. Burned in v1: ${burned.length ? burned.join(", ") : "none"}.`, "g");
+      log(`v1 unique slot for epoch 0: ${slot0}`);
+      drawBatches();
+    } catch (e) { log("Read failed: " + (e.shortMessage || e.message), "r"); }
+    $("read").disabled = false;
+  };
+
+  function drawBatches() {
+    const box = $("batches"); box.innerHTML = "";
+    for (let b = 0; b * BATCH < cats.length; b++) {
+      const part = cats.slice(b * BATCH, (b + 1) * BATCH);
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = `Copy batch ${b + 1} (#${part[0].id}–#${part[part.length - 1].id})`;
+      btn.onclick = () => runBatch(part, btn);
+      box.appendChild(btn);
+    }
+    $("finish").disabled = false;
+    $("verify").disabled = false;
+  }
+
+  async function connect() {
+    if (!window.ethereum) { log("No wallet found.", "r"); return false; }
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x" + cfg.chainId.toString(16) }] }); } catch (e) {}
+    signer = await new E.BrowserProvider(window.ethereum).getSigner();
+    const me = await signer.getAddress();
+    const owner = await v2r.owner();
+    log(`Connected ${me}`, owner.toLowerCase() === me.toLowerCase() ? "g" : "r");
+    if (owner.toLowerCase() !== me.toLowerCase()) log(`This wallet is not the owner of the new contract (${owner}).`, "r");
+    return true;
+  }
+  $("connect").onclick = () => connect().catch((e) => log(e.shortMessage || e.message, "r"));
+
+  async function runBatch(part, btn) {
+    try {
+      if (!signer && !(await connect())) return;
+      // skip cats already copied (safe to press again)
+      const todo = [];
+      for (const c of part) { try { await v2r.ownerOf(c.id); } catch { todo.push(c); } }
+      if (!todo.length) { log("This batch is already copied.", "g"); btn.disabled = true; return; }
+      const v2 = new E.Contract(cfg.nft, V2_ABI, signer);
+      const args = [todo.map((c) => c.id), todo.map((c) => c.owner), todo.map((c) => c.seed), todo.map((c) => c.epoch), todo.map((c) => c.unique)];
+      const est = await v2.migrate.estimateGas(...args);
+      const tx = await v2.migrate(...args, { gasLimit: (est * 12n) / 10n });
+      log(`Copying ${todo.length} cats… ${tx.hash.slice(0, 18)}…`);
+      await tx.wait();
+      log(`Copied ${todo.length} cats.`, "g");
+      btn.disabled = true;
+    } catch (e) { log("Batch failed: " + (e.shortMessage || e.message), "r"); }
+  }
+
+  $("finish").onclick = async () => {
+    try {
+      if (!signer && !(await connect())) return;
+      const alive = Number(await v2r.alive());
+      if (alive !== cats.length) { log(`Only ${alive} of ${cats.length} cats are copied. Run every batch first.`, "r"); return; }
+      const v2 = new E.Contract(cfg.nft, V2_ABI, signer);
+      const tx = await v2.finishMigration(v1Minted, slot0);
+      log("Finishing… " + tx.hash.slice(0, 18) + "…");
+      await tx.wait();
+      log(`Migration finished. Next cat will be #${v1Minted + 1}.`, "g");
+    } catch (e) { log("Finish failed: " + (e.shortMessage || e.message), "r"); }
+  };
+
+  $("verify").onclick = async () => {
+    try {
+      let ok = 0, bad = [];
+      await pool(cats, 6, async (c) => {
+        try {
+          const [o, s] = await Promise.all([v2r.ownerOf(c.id), v2r.seedOf(c.id)]);
+          if (o.toLowerCase() === c.owner.toLowerCase() && s === c.seed) ok++; else bad.push(c.id);
+        } catch { bad.push(c.id); }
+      });
+      const [minted, done] = await Promise.all([v2r.totalMinted(), v2r.migrationFinished()]);
+      log(`${ok}/${cats.length} cats match v1.${bad.length ? " Missing or different: " + bad.sort((a, b) => a - b).join(", ") : ""}`, bad.length ? "r" : "g");
+      log(`New contract: totalMinted ${minted}, migration finished: ${done}`, done ? "g" : "a");
+    } catch (e) { log("Verify failed: " + (e.shortMessage || e.message), "r"); }
+  };
+})();
+</script>
+</body>
+</html>

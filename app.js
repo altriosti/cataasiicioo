@@ -235,6 +235,7 @@
       window.ethereum.on("chainChanged", () => location.reload());
     }
     loadMyCats();
+    loadLegacy();
     return true;
   }
 
@@ -334,7 +335,9 @@
       if (s[6] !== thisJob.lastWork) { say("Someone mined this cat first. Next round.", "a"); return; }
       const value = s[4];
       const est = await nftW.mint.estimateGas(BigInt(f.nonce), f.bn, { value });
-      const tx = await nftW.mint(BigInt(f.nonce), f.bn, { value, gasLimit: (est * 13n) / 10n });
+      // extra room so the automatic buyback can run inside this mint
+      const withRoom = est + 550000n;
+      const tx = await nftW.mint(BigInt(f.nonce), f.bn, { value, gasLimit: withRoom > (est * 13n) / 10n ? withRoom : (est * 13n) / 10n });
       say("Transaction sent: " + tx.hash.slice(0, 18) + "…", "d");
       const rc = await tx.wait();
       const ev = rc.logs.map((l) => { try { return nftW.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "Mined");
@@ -489,7 +492,36 @@
       say(`Burning #${c.id}…`, "d"); await tx.wait(); say(`Burned #${c.id}.`, "g"); loadMyCats(); refresh();
     } catch (e) { say("Burn failed: " + (e.shortMessage || e.message), "r"); }
   };
-  $("reloadCats").onclick = loadMyCats;
+  $("reloadCats").onclick = () => { loadMyCats(); loadLegacy(); };
+
+  // ---- rent still waiting in the first contract (v1), claimable there
+  const legacy = cfg.legacyNft && E.isAddress(cfg.legacyNft) && cfg.legacyNft.toLowerCase() !== (cfg.nft || "").toLowerCase()
+    ? new E.Contract(cfg.legacyNft, NFT_ABI, rp) : null;
+  let legacyIds = [];
+  async function loadLegacy() {
+    if (!legacy || !account) return;
+    try {
+      const minted = Number((await legacy.miningState())[1]);
+      let ids = [];
+      for (let from = 1; from <= minted; from += 2048) {
+        ids = ids.concat((await legacy.tokensOfOwner(account, from, Math.min(minted, from + 2047))).map(Number));
+      }
+      if (!ids.length) { $("legacyBox").hidden = true; return; }
+      const [rent] = await legacy.catInfo(ids);
+      const total = rent.reduce((a, b) => a + b, 0n);
+      legacyIds = ids.filter((_, i) => rent[i] > 0n);
+      $("legacyText").textContent = `Rent from the first contract: ${fmtEth(total, 6)} ETH`;
+      $("legacyClaim").disabled = total === 0n;
+      $("legacyBox").hidden = false;
+    } catch (e) { console.warn("legacy", e); }
+  }
+  $("legacyClaim").onclick = async () => {
+    try {
+      const w = new E.Contract(cfg.legacyNft, NFT_ABI, signer);
+      const tx = await w.claimRent(legacyIds);
+      say("Claiming rent from the first contract…", "d"); await tx.wait(); say("Rent claimed.", "g"); loadLegacy();
+    } catch (e) { say("Claim failed: " + (e.shortMessage || e.message), "r"); }
+  };
 
   // ============================================================ start
   $("connectBtn").onclick = () => connect().catch((e) => say(e.shortMessage || e.message, "r"));

@@ -156,6 +156,9 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .cat.one{border-color:var(--amber)}
 .empty{grid-column:1/-1;border:1px dashed var(--line2);padding:26px;text-align:center;color:var(--mute)}
 
+.legacy{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;border:1px dashed var(--amber);padding:8px 12px;color:var(--amber);font-size:13px}
+.legacy[hidden]{display:none}
+
 /* ---------- protocol ---------- */
 .proto{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
 .proto > div{background:var(--panel);padding:14px}
@@ -272,6 +275,10 @@ footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);color:v
           <button class="btn" id="claimOneBtn" disabled>claim selected</button>
           <button class="btn danger" id="burnBtn" disabled>burn selected</button>
           <button class="btn" id="reloadCats">refresh</button>
+        </div>
+        <div class="legacy" id="legacyBox" hidden>
+          <span id="legacyText"></span>
+          <button class="btn" id="legacyClaim">claim v1 rent</button>
         </div>
         <div class="cats" id="catGrid"><div class="empty">Connect your wallet to see your cats.</div></div>
         <div class="statusline"><div id="catsTotal">0 cats</div><div id="catsRent">rent 0 ETH</div><div id="catsSel">nothing selected</div></div>

@@ -17,9 +17,10 @@ window.CATASIC_CONFIG = {
   // Public Base RPC: used last, and when adding Base to a wallet.
   rpc: "https://mainnet.base.org",
   explorer: "https://basescan.org",
-  nft: "0x712c75824Fe9398aDd05E65c60389f68A5bB39ba",     // CatASIC
-  token: "0x4a5CBF195910619F724d75cAD9e9cf9000aB5E37",   // CTASICToken
-  buyback: "0xAD6ba703c13F00FDf6eE5c21196A58d7EbF9fEEd", // Buyback
+  nft: "0x7C5C10866675e2c72dA8229F03CE708f205cb2FB",     // CatASIC (current)
+  token: "0x0f0930c12F6043a89081Aa5E7481e301ED62757C",   // CTASICToken (current)
+  buyback: "0xc18eb94cEF5D0C53E0EE40991aAe43e5362d791B", // Buyback (current, automatic)
+  legacyNft: "0x712c75824Fe9398aDd05E65c60389f68A5bB39ba", // first CatASIC: holders can still claim rent there
   deployBlock: 0,
 
   // Set paused to true to stop mining on the website. Set to false to allow mining again.

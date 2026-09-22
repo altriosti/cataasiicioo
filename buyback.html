@@ -34,6 +34,8 @@ input{width:100%;padding:8px;font:22px "VT323",monospace;background:#010402;colo
     <label for="amt">ETH to spend</label><input id="amt" value="0.05" inputmode="decimal">
     <label for="min">Minimum CTASIC to receive (filled by Get quote)</label><input id="min" inputmode="decimal">
     <div class="row"><button class="btn" id="quote">Get quote</button><button class="btn" id="run"><b>Buy and burn</b></button></div>
+    <p style="margin:8px 0 0">Or let the contract pick a safe amount itself:</p>
+    <div class="row"><button class="btn" id="auto"><b>Auto buy now</b></button></div>
   </div>
 </div>
 <script src="vendor/ethers.umd.min.js"></script>
@@ -46,7 +48,7 @@ input{width:100%;padding:8px;font:22px "VT323",monospace;background:#010402;colo
   const WETH = "0x4200000000000000000000000000000000000006";
   const FEE = 10000; // 1% pool
   const rp = window.makeCatProvider(cfg);
-  const BB_ABI = ["function buyAndBurn(uint256,uint256)", "function totalBurned() view returns (uint256)", "function totalEthSpent() view returns (uint256)", "function maxPerCall() view returns (uint256)"];
+  const BB_ABI = ["function autoBuy() returns (uint256)", "function lastAutoBuy() view returns (uint256)", "function cooldown() view returns (uint256)", "function buyAndBurn(uint256,uint256)", "function totalBurned() view returns (uint256)", "function totalEthSpent() view returns (uint256)", "function maxPerCall() view returns (uint256)"];
   let signer;
   const log = (m, c) => { const d = document.createElement("div"); if (c) d.className = c; d.textContent = "> " + m; $("log").appendChild(d); $("log").scrollTop = 1e9; };
   if (!cfg.buyback || !E.isAddress(cfg.buyback)) log("Set the buyback address in config.js first.", "r");
@@ -74,6 +76,19 @@ input{width:100%;padding:8px;font:22px "VT323",monospace;background:#010402;colo
       $("min").value = E.formatEther(min);
       log(`Quote: ${Number(E.formatEther(out)).toLocaleString()} CTASIC. Minimum set 5% lower.`, "g");
     } catch (e) { log("Quote failed: " + (e.shortMessage || e.message), "r"); }
+  };
+  $("auto").onclick = async () => {
+    try {
+      if (!signer) await connect();
+      const bb = new E.Contract(cfg.buyback, BB_ABI, signer);
+      const before = await new E.Contract(cfg.buyback, BB_ABI, rp).totalBurned();
+      const tx = await bb.autoBuy({ gasLimit: 600000 });
+      log("Sent " + tx.hash.slice(0, 18) + "…");
+      await tx.wait();
+      const after = await new E.Contract(cfg.buyback, BB_ABI, rp).totalBurned();
+      if (after > before) log(`Bought and burned ${Number(E.formatEther(after - before)).toLocaleString()} CTASIC.`, "g");
+      else log("Nothing bought this time: cooldown, small queue, not enough price history, or price is unusual. Try again later.");
+    } catch (e) { log("Auto buy failed: " + (e.shortMessage || e.message), "r"); }
   };
   $("run").onclick = async () => {
     try {
