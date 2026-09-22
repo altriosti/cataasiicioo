@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CatASIC // mine a cat on Base</title>
+<meta name="description" content="8,192 pixel cats mined with proof of work on Base, with your GPU and CPU. Art, traits and palette live on-chain.">
+<meta name="theme-color" content="#020403">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛏️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#020403; --panel:#040c07; --panel2:#061209; --line:#0f3d1f; --line2:#1a6b37;
+  --g:#39ff88; --g2:#1fbf62; --dim:#1f7a45; --txt:#b8ffd4; --mute:#5fa67c;
+  --amber:#ffcc33; --red:#ff4466; --cyan:#3de8ff;
+  --glow:0 0 6px rgba(57,255,136,.55),0 0 18px rgba(57,255,136,.25);
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --big:"VT323", "JetBrains Mono", monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 12px);background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.55 var(--mono);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--g)}
+::selection{background:var(--g);color:#000}
+button,input{font:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--g);outline-offset:3px}
+
+/* ---------- background layers ---------- */
+#rain{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:.22;pointer-events:none}
+.crt{position:fixed;inset:0;z-index:50;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.28) 2px 3px);
+  box-shadow:inset 0 0 160px rgba(0,0,0,.85)}
+.crt::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent,rgba(57,255,136,.06),transparent);height:18%;animation:sweep 7s linear infinite}
+@keyframes sweep{from{transform:translateY(-20vh)}to{transform:translateY(120vh)}}
+
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 18px 60px}
+
+/* ---------- top bar ---------- */
+.top{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top .path{color:var(--mute);flex:1;min-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .path b{color:var(--g);font-weight:400}
+.lamp{display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:12px}
+.lamp i{width:8px;height:8px;border-radius:50%;background:#123d24;display:inline-block}
+.lamp i.on{background:var(--g);box-shadow:var(--glow)}
+#trayGpu.on{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+#clock{color:var(--mute);font-size:12px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 26px;display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:end}
+.logo{font:400 clamp(64px,12vw,156px)/.82 var(--big);color:var(--g);text-shadow:var(--glow);margin:0;letter-spacing:2px;position:relative}
+.logo.glitching{animation:glitch .6s steps(2) 1}
+@keyframes glitch{
+  0%{text-shadow:-3px 0 var(--red),3px 0 var(--cyan);transform:translate(2px,-1px)}
+  25%{text-shadow:3px 0 var(--red),-3px 0 var(--cyan);transform:translate(-3px,1px);clip-path:inset(10% 0 55% 0)}
+  50%{text-shadow:-2px 0 var(--red),2px 0 var(--cyan);transform:translate(1px,2px);clip-path:inset(60% 0 5% 0)}
+  75%{transform:translate(-1px,-2px);clip-path:none}
+  100%{text-shadow:var(--glow);transform:none}}
+.tagline{color:var(--txt);font-size:clamp(15px,1.6vw,18px);max-width:34em;margin:16px 0 0}
+.tagline .k{color:var(--g)}
+.hero-side{border-left:1px solid var(--line2);padding-left:18px;color:var(--mute);font-size:13px}
+.hero-side div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:6px 0}
+.hero-side b{color:var(--g);font-weight:400;font-family:var(--big);font-size:22px;line-height:1}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin-top:22px}
+.nav a{color:var(--mute);text-decoration:none;border:1px solid var(--line);padding:4px 10px;font-size:12px}
+.nav a:hover,.nav a:focus-visible{color:#000;background:var(--g);border-color:var(--g)}
+
+/* ---------- panels ---------- */
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel{position:relative;border:1px solid var(--line2);background:linear-gradient(180deg,var(--panel2),var(--panel));padding:30px 16px 16px;min-width:0}
+.panel::before{content:attr(data-title);position:absolute;top:-11px;left:12px;background:var(--bg);color:var(--g);padding:0 8px;font-size:13px;letter-spacing:.5px;text-shadow:var(--glow)}
+.panel::after{content:"";position:absolute;inset:-1px;pointer-events:none;
+  background:linear-gradient(var(--g),var(--g)) top left/10px 1px,linear-gradient(var(--g),var(--g)) top left/1px 10px,
+             linear-gradient(var(--g),var(--g)) top right/10px 1px,linear-gradient(var(--g),var(--g)) top right/1px 10px,
+             linear-gradient(var(--g),var(--g)) bottom left/10px 1px,linear-gradient(var(--g),var(--g)) bottom left/1px 10px,
+             linear-gradient(var(--g),var(--g)) bottom right/10px 1px,linear-gradient(var(--g),var(--g)) bottom right/1px 10px;
+  background-repeat:no-repeat}
+.panel.ping{animation:ping .8s ease-out 1}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(57,255,136,.6)}100%{box-shadow:0 0 0 14px rgba(57,255,136,0)}}
+.panel .sub{position:absolute;top:8px;right:12px;font-size:11px;color:var(--mute)}
+
+/* ---------- buttons ---------- */
+.btn{background:transparent;color:var(--g);border:1px solid var(--g2);padding:10px 16px;cursor:pointer;letter-spacing:.5px;min-height:42px;transition:background .12s,color .12s}
+.btn::before{content:"[ "}.btn::after{content:" ]"}
+.btn:hover:not(:disabled){background:var(--g);color:#000;box-shadow:var(--glow)}
+.btn:disabled{color:#2d5a40;border-color:#173a26;cursor:not-allowed}
+.btn.go{background:var(--g);color:#000;font-weight:700;box-shadow:var(--glow)}
+.btn.go:disabled{background:transparent;color:#2d5a40;box-shadow:none}
+.btn.danger{color:var(--red);border-color:#7a2233}
+.btn.danger:hover:not(:disabled){background:var(--red);color:#000;box-shadow:0 0 12px rgba(255,68,102,.5)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---------- miner ---------- */
+.opts{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:14px 0;color:var(--txt)}
+.opts label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.opts input[type=checkbox]{appearance:none;width:16px;height:16px;border:1px solid var(--g2);margin:0;display:grid;place-items:center;cursor:pointer}
+.opts input[type=checkbox]:checked::after{content:"";width:8px;height:8px;background:var(--g);box-shadow:var(--glow)}
+.opts input[type=checkbox]:disabled{border-color:#173a26}
+.opts input[type=range]{accent-color:var(--g);width:130px}
+#gpuName{color:var(--mute);font-size:12px}
+.rig{display:grid;grid-template-columns:44px 1fr auto;gap:8px 12px;align-items:center;font-size:13px;margin-bottom:12px}
+.rig .l{color:var(--mute)}
+.rig .v{font:22px/1 var(--big);color:var(--g);text-align:right;min-width:110px}
+.meter{height:12px;border:1px solid var(--line);position:relative;overflow:hidden;background:#010603}
+.meter i{position:absolute;inset:0 auto 0 0;width:0;background:repeating-linear-gradient(90deg,var(--g) 0 6px,transparent 6px 8px);box-shadow:var(--glow);transition:width .5s}
+.meter.gpu i{background:repeating-linear-gradient(90deg,var(--cyan) 0 6px,transparent 6px 8px);box-shadow:0 0 8px var(--cyan)}
+#odds{color:var(--mute);font-size:12px;grid-column:1 / 3}
+.term{background:#010402;border:1px solid var(--line);height:300px;overflow:auto;padding:10px 12px;font-size:13px;line-height:1.5;scrollbar-color:var(--dim) transparent}
+.term .g{color:var(--g);text-shadow:var(--glow)} .term .a{color:var(--amber)} .term .r{color:var(--red)} .term .c{color:var(--cyan)} .term .d{color:var(--mute)}
+.cursor{display:inline-block;width:8px;height:15px;background:var(--g);vertical-align:-2px;box-shadow:var(--glow);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.statusline{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--mute)}
+.statusline div::before{content:"// ";color:var(--dim)}
+.stream{margin-top:12px;height:84px;overflow:hidden;font-size:11px;line-height:1.35;color:var(--dim);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);word-break:break-all}
+.stream div:first-child{color:var(--g)}
+
+/* ---------- holo viewer ---------- */
+.stage{position:relative;aspect-ratio:1;width:100%;border:1px solid var(--line);overflow:hidden;
+  background:radial-gradient(circle at 50% 45%,rgba(57,255,136,.12),transparent 60%),
+    linear-gradient(rgba(57,255,136,.07) 1px,transparent 1px) 0 0/24px 24px,
+    linear-gradient(90deg,rgba(57,255,136,.07) 1px,transparent 1px) 0 0/24px 24px,#010603}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
+.stage canvas:active{cursor:grabbing}
+.stage .scan{position:absolute;left:0;right:0;height:30%;background:linear-gradient(to bottom,transparent,rgba(57,255,136,.12),transparent);animation:holo 3.2s linear infinite;pointer-events:none}
+@keyframes holo{from{top:-30%}to{top:100%}}
+.stage .tag{position:absolute;left:10px;bottom:8px;font:20px var(--big);color:var(--g);text-shadow:var(--glow);pointer-events:none}
+.stage .hint{position:absolute;right:10px;top:8px;font-size:11px;color:var(--mute);pointer-events:none}
+.traits{margin-top:10px;font-size:12px;max-height:190px;overflow:auto}
+.traits table{width:100%;border-collapse:collapse}
+.traits td{padding:3px 0;border-bottom:1px dashed var(--line)}
+.traits td:first-child{color:var(--mute);width:44%}
+.traits td:last-child{color:var(--g)}
+
+/* ---------- network ---------- */
+.prog{font-size:11px;letter-spacing:-.5px;color:var(--g);text-shadow:var(--glow);white-space:nowrap;overflow:hidden;margin-bottom:12px;line-height:1}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+.kv > div{background:var(--panel);padding:10px}
+.kv .k{font-size:11px;color:var(--mute)}
+.kv .v{font:26px/1.05 var(--big);color:var(--g);font-variant-numeric:tabular-nums;text-shadow:0 0 6px rgba(57,255,136,.35)}
+
+/* ---------- cats ---------- */
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;margin-top:12px;max-height:360px;overflow:auto}
+.cat{background:#010603;border:1px solid var(--line);padding:6px;color:var(--mute);cursor:pointer;font-size:12px;text-align:center}
+.cat canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;display:block;margin-bottom:4px}
+.cat:hover{border-color:var(--g2)}
+.cat.sel{border-color:var(--g);color:var(--g);box-shadow:var(--glow)}
+.cat.one{border-color:var(--amber)}
+.empty{grid-column:1/-1;border:1px dashed var(--line2);padding:26px;text-align:center;color:var(--mute)}
+
+/* ---------- protocol ---------- */
+.proto{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
+.proto > div{background:var(--panel);padding:14px}
+.proto .n{font:34px/1 var(--big);color:var(--g);text-shadow:var(--glow)}
+.proto h3{font-size:14px;margin:6px 0;color:var(--txt)}
+.proto p{margin:0;color:var(--mute);font-size:12.5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.two div{border-left:2px solid var(--g2);padding:4px 0 4px 12px}
+.two h3{margin:0 0 4px;font-size:14px;color:var(--g)}
+.two p{margin:0;color:var(--mute);font-size:13px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line)}
+table.ep{width:100%;border-collapse:collapse;min-width:520px;font-size:13px}
+table.ep th,table.ep td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+table.ep th{color:var(--mute);font-weight:400;background:var(--panel2)}
+table.ep tr.now td{color:#000;background:var(--g)}
+.fine{color:var(--mute);font-size:12px;margin:12px 0 0}
+
+footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);color:var(--mute);font-size:12px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+#startList{display:flex;gap:14px;flex-wrap:wrap}
+#startList a{text-decoration:none}
+#startList a:hover{text-shadow:var(--glow)}
+
+/* ---------- boot ---------- */
+.boot{position:fixed;inset:0;background:#000;z-index:100;padding:28px;color:var(--g2);font:13px/1.6 var(--mono);overflow:hidden;cursor:pointer;white-space:pre-wrap}
+.boot .hi{color:var(--g);text-shadow:var(--glow)}
+.boot .warn{color:var(--amber)}
+.boot .granted{font:clamp(40px,8vw,90px)/1 var(--big);color:var(--g);text-shadow:var(--glow);margin-top:10px;animation:glitch .5s steps(2) 2}
+.boot .skip{position:absolute;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));color:var(--dim)}
+.boot.done{animation:out .6s forwards}
+@keyframes out{to{opacity:0;visibility:hidden;filter:blur(4px)}}
+
+@media (max-width:980px){
+  .hero,.grid{grid-template-columns:1fr}
+  .hero-side{border-left:0;border-top:1px solid var(--line2);padding:12px 0 0}
+  .proto{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){
+  .wrap{padding:0 12px 40px}
+  .proto,.two{grid-template-columns:1fr}
+  .rig .v{min-width:90px;font-size:19px}
+  .term{height:240px}
+  .boot{font-size:11px;padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<div class="crt" aria-hidden="true"></div>
+
+<div class="boot" id="boot" role="status" aria-live="polite">
+  <div id="bootText"></div>
+  <div class="skip">tap to skip</div>
+</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="path">root@catasic:<b>~/base-mainnet</b>$ ./mine --gpu --cpu</div>
+    <span class="lamp"><i id="trayGpu"></i>GPU</span>
+    <span class="lamp"><i id="trayCpu"></i>CPU</span>
+    <span id="clock">--:--:--</span>
+    <button class="btn" id="connectBtn">connect wallet</button>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1 class="logo">CATASIC</h1>
+      <p class="tagline">8,192 pixel cats you have to <span class="k">mine</span>. Your GPU and CPU crack a hash, the contract draws your cat. No allowlist. No team stash. <span class="k">Base mainnet.</span></p>
+      <nav class="nav" aria-label="Sections">
+        <a href="#wMiner" data-open="wMiner">./miner</a>
+        <a href="#wViewer" data-open="wViewer">./viewer</a>
+        <a href="#wNet" data-open="wNet">./network</a>
+        <a href="#wCats" data-open="wCats">./my-cats</a>
+        <a href="#wReadme" data-open="wReadme">./readme</a>
+      </nav>
+    </div>
+    <div class="hero-side" aria-label="Summary">
+      <div><span>supply wall</span><b>8,192</b></div>
+      <div><span>epochs</span><b>8</b></div>
+      <div><span>rent to holders</span><b>60%</b></div>
+      <div><span>buyback + burn</span><b>30%</b></div>
+      <div><span>token</span><b>$CTASIC</b></div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel" id="wMiner" data-title="MINER.EXE">
+        <span class="sub">keccak256 // proof of work</span>
+        <div class="row">
+          <button class="btn go" id="mineBtn" disabled>start mining</button>
+          <button class="btn" id="stopBtn" disabled>stop</button>
+        </div>
+        <div class="opts">
+          <label><input type="checkbox" id="useGpu" checked> GPU <span id="gpuName"></span></label>
+          <label>CPU threads <input type="range" id="cpuThreads" min="0" max="8" value="2"> <b id="cpuThreadsVal">2</b></label>
+        </div>
+        <div class="rig" aria-label="Hashrate">
+          <span class="l">GPU</span><div class="meter gpu"><i id="gpuMeter"></i></div><span class="v" id="gpuRate">off</span>
+          <span class="l">CPU</span><div class="meter"><i id="cpuMeter"></i></div><span class="v" id="cpuRate">off</span>
+          <span id="odds">chance of a cat in the next minute: —</span><span class="v" id="allRate">0 H/s</span>
+        </div>
+        <div class="term" id="term" aria-live="polite"></div>
+        <div class="statusline"><div id="stWallet">no wallet</div><div id="stPrice">price …</div><div id="stEpoch">epoch …</div></div>
+        <div class="stream" id="stream" aria-hidden="true"></div>
+      </section>
+
+      <section class="panel" id="wCats" data-title="MY_CATS/">
+        <span class="sub">claim rent // burn for $CTASIC</span>
+        <div class="row">
+          <button class="btn" id="claimAllBtn" disabled>claim all rent</button>
+          <button class="btn" id="claimOneBtn" disabled>claim selected</button>
+          <button class="btn danger" id="burnBtn" disabled>burn selected</button>
+          <button class="btn" id="reloadCats">refresh</button>
+        </div>
+        <div class="cats" id="catGrid"><div class="empty">Connect your wallet to see your cats.</div></div>
+        <div class="statusline"><div id="catsTotal">0 cats</div><div id="catsRent">rent 0 ETH</div><div id="catsSel">nothing selected</div></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="wViewer" data-title="HOLO_VIEWER">
+        <span class="sub">3D // drag to rotate</span>
+        <div class="stage"><canvas id="stage3d" aria-label="3D pixel cat. Drag to rotate."></canvas><div class="scan" aria-hidden="true"></div><div class="tag" id="stageTag">random preview</div></div>
+        <div class="traits" id="traits"></div>
+      </section>
+
+      <section class="panel" id="wNet" data-title="NETWORK_MONITOR">
+        <span class="sub">live // base</span>
+        <div class="prog" id="prog" aria-label="Cats mined out of 8192"></div>
+        <div class="kv">
+          <div><div class="k">cats mined</div><div class="v" id="nMinted">…</div></div>
+          <div><div class="k">alive</div><div class="v" id="nAlive">…</div></div>
+          <div><div class="k">price now</div><div class="v" id="nPrice">…</div></div>
+          <div><div class="k">work per cat</div><div class="v" id="nWork">…</div></div>
+          <div><div class="k">paid for mints</div><div class="v" id="nPaid">…</div></div>
+          <div><div class="k">buyback queue</div><div class="v" id="nQueue">…</div></div>
+          <div><div class="k">$CTASIC supply</div><div class="v" id="nSupply">…</div></div>
+          <div><div class="k">last cat</div><div class="v" id="nLast">…</div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel" id="wReadme" data-title="README.TXT" style="margin-top:18px">
+    <div class="proto">
+      <div><div class="n">01</div><h3>Hash</h3><p>Your GPU and CPU hash your address, a nonce, the last cat's work and a recent block. Your address is inside, so nobody can steal your answer.</p></div>
+      <div><div class="n">02</div><h3>Crack</h3><p>A hash below the target is a ticket. The target retunes every 8 cats to keep about one cat every 30 seconds.</p></div>
+      <div><div class="n">03</div><h3>Pay</h3><p>Send the ticket with the current price. 60% goes to living cats as rent, 30% buys and burns $CTASIC, 10% to the team.</p></div>
+      <div><div class="n">04</div><h3>Draw</h3><p>The contract turns your hash into fur, pattern, ears, eyes, mouth, outfit, eyewear, headwear and the item in its paw.</p></div>
+    </div>
+    <div class="two">
+      <div><h3>hold</h3><p>Your cat earns rent from every cat mined after it. Claim any time. Selling the cat sells its unclaimed rent too.</p></div>
+      <div><h3>burn</h3><p>Get its rent plus 1,000 $CTASIC in its own epoch, halving every epoch after. Its share of future rent goes to the cats still alive.</p></div>
+    </div>
+    <div class="table-wrap"><table class="ep"><thead><tr><th>epoch</th><th>cats</th><th>price (ETH)</th><th>burn reward today</th></tr></thead><tbody id="epochRows"></tbody></table></div>
+    <p class="fine">One cat per epoch is a one-of-one. GPU mining needs WebGPU (Chrome or Edge on a computer with a wallet extension); wallet in-app browsers mine with CPU. Mining costs ETH and gas. Rent depends on future mints and is never guaranteed.</p>
+  </section>
+
+  <footer>
+    <div id="startList"></div>
+    <div>art, traits and palette live on-chain</div>
+  </footer>
+</div>
+
+<script>
+// digital rain made of hex, paused when the tab is hidden or motion is reduced
+(() => {
+  const c = document.getElementById("rain"), ctx = c.getContext("2d");
+  if (!ctx || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const chars = "0123456789abcdef", size = 16;
+  let cols = [], w = 0, h = 0;
+  const resize = () => {
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    cols = Array.from({ length: Math.ceil(w / size) }, () => Math.random() * -h / size);
+  };
+  resize(); addEventListener("resize", resize);
+  let last = 0;
+  const draw = (t) => {
+    requestAnimationFrame(draw);
+    if (document.hidden || t - last < 55) return;
+    last = t;
+    ctx.fillStyle = "rgba(2,4,3,.14)"; ctx.fillRect(0, 0, w, h);
+    ctx.font = size + "px VT323, monospace";
+    cols.forEach((y, i) => {
+      ctx.fillStyle = Math.random() > .96 ? "#d7ffe8" : "#39ff88";
+      ctx.fillText(chars[(Math.random() * 16) | 0], i * size, y * size);
+      cols[i] = y * size > h && Math.random() > .975 ? 0 : y + 1;
+    });
+  };
+  requestAnimationFrame(draw);
+})();
+</script>
+<script src="vendor/ethers.umd.min.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="config.js"></script>
+<script src="rpc.js"></script>
+<script src="art.js"></script>
+<script src="cat-core.js"></script>
+<script src="gpu-miner.js"></script>
+<script src="viewer3d.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
