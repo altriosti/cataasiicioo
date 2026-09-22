@@ -20,6 +20,6 @@ window.CATASIC_CONFIG = {
   buyback: "0xc18eb94cEF5D0C53E0EE40991aAe43e5362d791B",
   legacyNft: "0x712c75824Fe9398aDd05E65c60389f68A5bB39ba",
   deployBlock: 0,
-  paused: true,
-  pausedMessage: "Mining is paused for scheduled maintenance. Your cats and rent are safe. We will be back soon."
+  paused: false,
+  pausedMessage: ""
 };
